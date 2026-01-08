@@ -29,6 +29,8 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/auth/callback" element={<LoginCallback />} />
             <Route path="/product/:id" element={<ProductDetails />} />
+            {/* Public prefill route so responses can open the add-product form with data */}
+            <Route path="/add-product" element={<ProductForm />} />
             
             {/* Seller Routes */}
             <Route path="/seller/add-product" element={
