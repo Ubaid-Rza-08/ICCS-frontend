@@ -2,18 +2,18 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-
+import AdminDashboard from './pages/admin/AdminDashboard';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
-import LoginCallback from './pages/LoginCallback'; // (Code provided in previous answer)
+import LoginCallback from './pages/LoginCallback'; 
 import ProductForm from './pages/seller/ProductForm';
-import AdminDashboard from './pages/admin/AdminDashboard';
+import SellerDashboard from './pages/seller/SellerDashboard'; // NEW COMPONENT
 import ProductDetails from './pages/ProductDetails';
 
 // Role Guard Component
 const ProtectedRoute = ({ children, roles }) => {
   const { user, role, loading } = useAuth();
-  if (loading) return <div>Loading...</div>;
+  if (loading) return <div className="flex justify-center items-center h-screen">Loading...</div>;
   if (!user) return <Navigate to="/" />;
   if (roles && !roles.includes(role)) return <Navigate to="/" />;
   return children;
@@ -24,16 +24,20 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <Navbar />
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/auth/callback" element={<LoginCallback />} />
             <Route path="/product/:id" element={<ProductDetails />} />
-            {/* Public prefill route so responses can open the add-product form with data */}
-            <Route path="/add-product" element={<ProductForm />} />
-            
             {/* Seller Routes */}
+            <Route path="/seller/dashboard" element={
+              <ProtectedRoute roles={['SELLER']}> <SellerDashboard /> </ProtectedRoute>
+            } />
             <Route path="/seller/add-product" element={
+              <ProtectedRoute roles={['SELLER']}> <ProductForm /> </ProtectedRoute>
+            } />
+            {/* Reuse ProductForm for Editing */}
+            <Route path="/seller/edit-product/:id" element={
               <ProtectedRoute roles={['SELLER']}> <ProductForm /> </ProtectedRoute>
             } />
             
@@ -42,11 +46,14 @@ function App() {
               <ProtectedRoute roles={['ADMIN']}> <AdminDashboard /> </ProtectedRoute>
             } />
           </Routes>
+
         </div>
-        <ToastContainer />
+        <ToastContainer position="bottom-right" theme="colored" />
       </AuthProvider>
     </BrowserRouter>
   );
 }
 
 export default App;
+
+ 
