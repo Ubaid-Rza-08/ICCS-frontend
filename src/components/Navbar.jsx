@@ -1,51 +1,59 @@
-import { Link } from "react-router-dom";
+import { NavLink, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const Navbar = () => {
   const { user, role, loginGoogle, logout } = useAuth();
 
+  const navLinkClass = ({ isActive }) =>
+    isActive
+      ? "text-green-400 font-semibold"
+      : "text-white hover:text-green-300";
+
   return (
     <nav className="bg-gray-800 text-white">
       <div className="max-w-screen-xl mx-auto px-6 py-4 flex justify-between items-center">
+        
         {/* Logo */}
-        <Link to="/" className="text-xl font-bold">
-          E-Shop
+        <Link to="/" className="text-xl font-bold text-white">
+          STARIAL
         </Link>
 
         {/* Links */}
-        <div className="flex gap-4 items-center">
-          <Link to="/" className="hover:text-gray-300">
+        <div className="flex gap-6 items-center">
+          
+          <NavLink to="/" className={navLinkClass}>
             Home
-          </Link>
+          </NavLink>
 
           {role === "SELLER" && (
             <>
-              <Link to="/seller/dashboard" className="text-green-400">
+              <NavLink to="/seller/dashboard" className={navLinkClass}>
                 Dashboard
-              </Link>
-              <Link to="/seller/add-product" className="text-green-400">
+              </NavLink>
+
+              <NavLink to="/seller/add-product" className={navLinkClass}>
                 Add Product
-              </Link>
+              </NavLink>
             </>
           )}
 
           {role === "ADMIN" && (
-            <Link to="/admin/dashboard" className="text-red-400">
+            <NavLink to="/admin/dashboard" className={navLinkClass}>
               Admin Panel
-            </Link>
+            </NavLink>
           )}
 
           {user ? (
             <button
               onClick={logout}
-              className="bg-red-600 px-3 py-1 rounded"
+              className="bg-red-600 px-3 py-1 rounded hover:bg-red-700"
             >
               Logout
             </button>
           ) : (
             <button
               onClick={loginGoogle}
-              className="bg-blue-600 px-3 py-1 rounded"
+              className="bg-blue-600 px-3 py-1 rounded hover:bg-blue-700"
             >
               Login with Google
             </button>
@@ -57,4 +65,3 @@ const Navbar = () => {
 };
 
 export default Navbar;
-  
