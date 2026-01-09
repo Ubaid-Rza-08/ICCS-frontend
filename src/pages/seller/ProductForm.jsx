@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import api from '../../api/axios';
 import { toast } from 'react-toastify';
-import { FaCloudUploadAlt, FaMagic, FaTimes, FaCheckCircle, FaSpinner, FaImage } from 'react-icons/fa';
+import { FaCloudUploadAlt, FaMagic, FaTimes, FaCheckCircle, FaSpinner, FaTrophy } from 'react-icons/fa';
 
 const ProductForm = () => {
   const navigate = useNavigate();
@@ -20,10 +20,8 @@ const ProductForm = () => {
     category: '', subCategory: '', keywords: [], confidence: 0, mode: '', pImages: [] 
   });
 
-  // Changed to an array to allow appending multiple files
   const [newFiles, setNewFiles] = useState([]);
 
-  // Load existing data if editing
   useEffect(() => {
     if (isEditMode && location.state?.product) {
       const p = location.state.product;
@@ -39,27 +37,58 @@ const ProductForm = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // --- 1. HANDLE FILE SELECTION (APPENDING) ---
   const handleFileSelect = (e) => {
     if (e.target.files && e.target.files.length > 0) {
       const selectedFiles = Array.from(e.target.files);
-      setNewFiles(prev => [...prev, ...selectedFiles]); // Append new files
+      setNewFiles(prev => [...prev, ...selectedFiles]); 
     }
   };
 
-  // --- 2. REMOVE NEW FILE ---
   const removeNewFile = (indexToRemove) => {
     setNewFiles(prev => prev.filter((_, index) => index !== indexToRemove));
   };
 
-  // --- 3. AI ANALYSIS & SEARCH HANDLER ---
+  // --- 1. RELEVANCE SCORING ALGORITHM ---
+  const calculateRelevanceScore = (aiData, product) => {
+      let score = 0;
+      
+      const aiTitleWords = (aiData.title || "").toLowerCase().split(/\s+/);
+      const aiKeywords = (aiData.keywords || []).map(k => k.toLowerCase());
+      
+      const pName = (product.pName || "").toLowerCase();
+      const pDesc = (product.pDescription || "").toLowerCase();
+      const pKeywords = (product.keywords || []).map(k => k.toLowerCase());
+
+      // A. Title Match (Weight: 10 points per matched word)
+      // This is the strongest indicator of a match
+      aiTitleWords.forEach(word => {
+          if (word.length > 2 && pName.includes(word)) {
+              score += 10;
+          }
+      });
+
+      // B. Keyword Match (Weight: 5 points per match)
+      aiKeywords.forEach(aiK => {
+          if (pKeywords.some(pK => pK.includes(aiK) || aiK.includes(pK))) {
+              score += 5;
+          }
+      });
+
+      // C. Description Context (Weight: 3 points)
+      // Checks if the main AI title appears in the description
+      if (pDesc.includes(aiData.title?.toLowerCase())) {
+          score += 3;
+      }
+
+      return score;
+  };
+
+  // --- 2. UPDATED ANALYZE & SORT ---
   const handleAnalyze = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // FIX: Add the analyzed image to the upload queue immediately
     setNewFiles(prev => [...prev, file]);
-
     setAiLoading(true);
     setSimilarProducts([]);
 
@@ -82,13 +111,23 @@ const ProductForm = () => {
         mode: ai.mode
       }));
 
+      // --- FETCH AND RANK SIMILAR PRODUCTS ---
       if (ai.keywords && ai.keywords.length > 0) {
         try {
             const keywordQuery = ai.keywords.join(',');
             const { data: searchResults } = await api.get(`/public/products/search-keywords?keywords=${keywordQuery}`);
+            
             if (searchResults && searchResults.length > 0) {
-                setSimilarProducts(searchResults);
-                toast.info(`Found ${searchResults.length} similar products!`);
+                // Apply Scoring
+                const rankedProducts = searchResults.map(product => ({
+                    ...product,
+                    relevanceScore: calculateRelevanceScore(ai, product)
+                }))
+                // Sort Descending (Highest Score First)
+                .sort((a, b) => b.relevanceScore - a.relevanceScore);
+
+                setSimilarProducts(rankedProducts);
+                toast.info(`Found ${rankedProducts.length} similar products. Top match ranked #1.`);
             }
         } catch (searchErr) {
             console.error("Keyword search failed", searchErr);
@@ -102,11 +141,8 @@ const ProductForm = () => {
     }
   };
 
-  // --- 4. HANDLE SELECTING A SIMILAR PRODUCT ---
   const handleSelectSimilar = (product) => {
-      // Safety check: ensure we get an array, even if backend sends null
       const incomingImages = product.pImages || [];
-
       setFormData(prev => ({
           ...prev,
           pName: product.pName || "",
@@ -114,17 +150,15 @@ const ProductForm = () => {
           pDescription: product.pDescription || "",
           pMrp: product.pMrp || "",
           pSellingPrice: product.pSellingPrice || "",
-          // Keep current purchasing price or default to 0 if not present
           pPurchasingPrice: product.pPurchasingPrice || prev.pPurchasingPrice, 
           category: product.category || "",
           subCategory: product.subCategory || "",
           keywords: product.keywords || [],
-          // IMPORTANT: Set the existing images from the selected product
           pImages: incomingImages
       }));
       
       toast.success("Form filled from selected product!");
-      setSimilarProducts([]); // Clear search results
+      setSimilarProducts([]);
   };
 
   const handleSubmit = async (e) => {
@@ -133,8 +167,6 @@ const ProductForm = () => {
 
     const submitData = new FormData();
     submitData.append('product', JSON.stringify(formData));
-    
-    // FIX: Append all files from the array
     newFiles.forEach(f => submitData.append('images', f));
 
     try {
@@ -190,11 +222,11 @@ const ProductForm = () => {
             )}
           </div>
 
-          {/* SIMILAR PRODUCTS RESULTS */}
+          {/* SIMILAR PRODUCTS RESULTS (RANKED) */}
           {similarProducts.length > 0 && (
              <div className="mt-4 pt-4 border-t border-indigo-200">
                  <div className="flex justify-between items-center mb-2">
-                    <h4 className="text-sm font-bold text-indigo-800">Found {similarProducts.length} similar products:</h4>
+                    <h4 className="text-sm font-bold text-indigo-800">Ranked Matches ({similarProducts.length}):</h4>
                     <button onClick={() => setSimilarProducts([])} className="text-xs text-gray-500 hover:text-red-500">Dismiss</button>
                  </div>
                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -204,8 +236,18 @@ const ProductForm = () => {
                            onClick={() => handleSelectSimilar(prod)}
                            className="bg-white p-2 rounded border border-indigo-100 cursor-pointer hover:ring-2 hover:ring-indigo-500 transition relative group"
                          >
-                            <img src={prod.pImages?.[0] || 'https://placehold.co/100'} alt={prod.pName} className="w-full h-24 object-contain rounded mb-2"/>
+                            {/* --- RANK BADGE --- */}
+                            <div className={`absolute top-0 left-0 text-xs font-bold px-2 py-1 rounded-br z-10 
+                                ${idx === 0 ? 'bg-yellow-400 text-yellow-900' : 'bg-gray-200 text-gray-700'}`}>
+                                {idx === 0 ? <span className="flex items-center gap-1"><FaTrophy/> #1 Match</span> : `#${idx + 1}`}
+                            </div>
+
+                            <img src={prod.pImages?.[0] || 'https://placehold.co/100'} alt={prod.pName} className="w-full h-24 object-contain rounded mb-2 pt-6"/>
                             <p className="text-xs font-bold text-gray-800 line-clamp-1">{prod.pName}</p>
+                            
+                            {/* Display Score for clarity */}
+                            <p className="text-[10px] text-indigo-500 font-medium">Relevance: {prod.relevanceScore}</p>
+
                             <div className="absolute inset-0 bg-indigo-900/10 opacity-0 group-hover:opacity-100 transition flex items-center justify-center rounded">
                                 <span className="bg-white text-indigo-600 text-xs font-bold px-2 py-1 rounded shadow flex items-center gap-1">
                                     <FaCheckCircle /> Use This
@@ -265,9 +307,7 @@ const ProductForm = () => {
           {/* --- IMAGE HANDLING SECTION --- */}
           <div>
              <label className="block text-sm font-medium text-gray-700 mb-2">Product Images</label>
-             
              <div className="flex gap-4 mb-4 flex-wrap">
-               {/* 1. Existing Images (URLs) */}
                {formData.pImages?.map((img, idx) => (
                  <div key={`old-${idx}`} className="relative w-24 h-24">
                    <img src={img} alt="existing" className="w-full h-full object-cover rounded-lg border border-gray-200" />
@@ -277,7 +317,6 @@ const ProductForm = () => {
                  </div>
                ))}
 
-               {/* 2. New Images (File Previews) */}
                {newFiles.map((file, idx) => (
                  <div key={`new-${idx}`} className="relative w-24 h-24">
                    <img src={URL.createObjectURL(file)} alt="preview" className="w-full h-full object-cover rounded-lg border-2 border-green-400" />
@@ -288,7 +327,6 @@ const ProductForm = () => {
                  </div>
                ))}
                
-               {/* 3. Upload Button */}
                <label className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 hover:border-indigo-400 transition text-gray-400 hover:text-indigo-500">
                   <FaCloudUploadAlt size={24} />
                   <span className="text-xs mt-1">Add</span>
@@ -298,7 +336,6 @@ const ProductForm = () => {
              
              <p className="text-xs text-gray-500">
                 {formData.pImages.length + newFiles.length} images selected. 
-                (Green border indicates new files to be uploaded)
              </p>
           </div>
 
