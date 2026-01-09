@@ -3,6 +3,9 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/axios';
 import { FaShoppingCart, FaStar, FaArrowLeft, FaShieldAlt, FaTruck, FaUndo, FaTag } from 'react-icons/fa';
 
+// Import the new separate component
+import ProductReviews from '../components/ProductReviews'; 
+
 const ProductDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -14,13 +17,12 @@ const ProductDetails = () => {
   const [qty, setQty] = useState(1);
 
   useEffect(() => {
-    // Scroll to top on load
     window.scrollTo(0, 0);
 
     const fetchProduct = async () => {
       setLoading(true);
       try {
-        // 1. OPTION A: Use data passed from the previous page (Instant load)
+        // 1. Check passed state first
         if (location.state?.prefill) {
           const p = location.state.prefill;
           setProduct(p);
@@ -29,15 +31,13 @@ const ProductDetails = () => {
           return;
         }
 
-        // 2. OPTION B: Fetch from API if accessed directly via URL
-        // Try getting specific product, otherwise fetch all and find
+        // 2. Fetch from API
         try {
-            // Adjust endpoint to match your backend (e.g., /public/products/123)
             const { data } = await api.get(`/public/products/${id}`); 
             setProduct(data);
             setSelectedImage(data.pImages?.[0] || '');
         } catch (e) {
-            // Fallback: Fetch all if single-get endpoint isn't ready
+            // Fallback: fetch all and find
             const { data } = await api.get('/public/products');
             const found = data.find(p => (p.pId || p.id) == id);
             if (found) {
@@ -68,18 +68,14 @@ const ProductDetails = () => {
     </div>
   );
 
-  // Fallback image
   const displayImages = product.pImages?.length ? product.pImages : ['https://placehold.co/600x600?text=No+Image'];
 
   return (
     <div className="min-h-screen bg-white font-sans text-gray-800">
       
-      {/* Navbar Placeholder (if not in App.jsx) */}
-      {/* <Navbar /> */}
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
-        {/* Breadcrumb / Back */}
+        {/* Back Button */}
         <button 
             onClick={() => navigate(-1)} 
             className="flex items-center text-sm text-gray-500 hover:text-indigo-600 mb-6 transition-colors group"
@@ -90,9 +86,8 @@ const ProductDetails = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
             
-            {/* LEFT: IMAGE GALLERY */}
+            {/* LEFT: IMAGES */}
             <div className="flex flex-col gap-4">
-                {/* Main Image Stage */}
                 <div className="relative aspect-square w-full bg-white border border-gray-100 rounded-2xl overflow-hidden flex items-center justify-center p-6 shadow-sm">
                     <img 
                         src={selectedImage || displayImages[0]} 
@@ -100,8 +95,6 @@ const ProductDetails = () => {
                         className="w-full h-full object-contain transition-transform duration-500 hover:scale-105 cursor-zoom-in"
                     />
                 </div>
-                
-                {/* Thumbnails */}
                 {displayImages.length > 1 && (
                     <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
                         {displayImages.map((img, idx) => (
@@ -119,9 +112,8 @@ const ProductDetails = () => {
                 )}
             </div>
 
-            {/* RIGHT: PRODUCT INFO */}
+            {/* RIGHT: DETAILS */}
             <div className="flex flex-col">
-                {/* Brand & Category */}
                 <div className="flex items-center gap-2 mb-3">
                     <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded uppercase tracking-wider">
                         {product.category}
@@ -131,23 +123,22 @@ const ProductDetails = () => {
                     </span>
                 </div>
 
-                {/* Title */}
                 <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 leading-tight mb-4">
                     {product.pName}
                 </h1>
 
-                {/* Rating (Static/Placeholder) */}
+                {/* Star Rating Section */}
                 <div className="flex items-center gap-2 mb-6 border-b border-gray-100 pb-6">
                     <div className="flex text-yellow-400 text-sm">
                         {[...Array(4)].map((_,i) => <FaStar key={i} />)}
                         <FaStar className="text-gray-300" />
                     </div>
+                    {/* Anchor link logic could be added here to scroll to reviews */}
                     <span className="text-sm text-blue-600 font-medium hover:underline cursor-pointer">
-                        (4.2 Ratings)
+                        (See Reviews)
                     </span>
                 </div>
 
-                {/* Price Block */}
                 <div className="mb-6">
                     <div className="flex items-baseline gap-3">
                         <span className="text-5xl font-extrabold text-gray-900">
@@ -165,7 +156,6 @@ const ProductDetails = () => {
                     <p className="text-sm text-gray-500 mt-1">Inclusive of all taxes</p>
                 </div>
 
-                {/* Action Buttons */}
                 <div className="flex flex-col sm:flex-row gap-4 mb-8">
                     <div className="flex items-center border border-gray-300 rounded-lg h-12 w-fit">
                         <button onClick={() => setQty(q => Math.max(1, q-1))} className="px-4 text-gray-600 hover:bg-gray-100 h-full font-bold">-</button>
@@ -178,7 +168,6 @@ const ProductDetails = () => {
                     </button>
                 </div>
 
-                {/* Key Benefits */}
                 <div className="grid grid-cols-3 gap-4 mb-8">
                     <div className="text-center p-3 bg-gray-50 rounded-lg">
                         <FaShieldAlt className="mx-auto text-xl text-gray-400 mb-1" />
@@ -194,7 +183,6 @@ const ProductDetails = () => {
                     </div>
                 </div>
 
-                {/* Description */}
                 <div>
                     <h3 className="text-lg font-bold text-gray-900 mb-3">About this item</h3>
                     <p className="text-gray-600 leading-relaxed whitespace-pre-line">
@@ -202,7 +190,6 @@ const ProductDetails = () => {
                     </p>
                 </div>
 
-                {/* Keywords Tags */}
                 {product.keywords && (
                     <div className="mt-8 pt-6 border-t border-gray-100">
                         <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
@@ -219,6 +206,10 @@ const ProductDetails = () => {
                 )}
             </div>
         </div>
+
+        {/* --- INJECTED REVIEWS COMPONENT --- */}
+        <ProductReviews productId={product.pId || product.id} />
+
       </div>
     </div>
   );
