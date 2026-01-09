@@ -79,10 +79,10 @@ const Home = () => {
 
         <div className="max-w-7xl mx-auto px-6 py-20 relative z-10 flex flex-col items-center text-center">
           <h1 className="text-4xl md:text-6xl font-extrabold text-white tracking-tight mb-6 drop-shadow-sm">
-            Shop the <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-purple-300">Future</span>
+            Stationery At <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-purple-300">Your Home</span>
           </h1>
           <p className="text-indigo-100 text-lg md:text-xl max-w-2xl mb-10 leading-relaxed">
-            Explore our curated collection of premium products. Quality you can trust, prices you'll love.
+            Shop quality books, stationery, and school uniforms online with ease.
           </p>
 
           <form onSubmit={handleSearch} className="w-full max-w-3xl bg-white rounded-full p-2 flex shadow-2xl transform transition-transform focus-within:scale-105 duration-300">
