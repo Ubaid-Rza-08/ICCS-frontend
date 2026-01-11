@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 
-const AuthContext = createContext();
+// FIX: Export the Context itself so other files can use it
+export const AuthContext = createContext(); 
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -30,6 +31,7 @@ export const AuthProvider = ({ children }) => {
     window.location.href = "/";
   };
 
+  // Note: We are providing 'user', not 'auth'
   return (
     <AuthContext.Provider value={{ user, role, loading, loginGoogle, logout }}>
       {!loading && children}

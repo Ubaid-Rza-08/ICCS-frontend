@@ -3,8 +3,9 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/axios';
 import { FaShoppingCart, FaStar, FaArrowLeft, FaShieldAlt, FaTruck, FaUndo, FaTag } from 'react-icons/fa';
 
-// Import the new separate component
+// Import Components
 import ProductReviews from '../components/ProductReviews'; 
+import PaymentButton from '../components/PaymentButton'; // <--- NEW IMPORT
 
 const ProductDetails = () => {
   const { id } = useParams();
@@ -54,6 +55,14 @@ const ProductDetails = () => {
 
     fetchProduct();
   }, [id, location.state]);
+
+  // Handle successful payment
+  const handlePaymentSuccess = (response) => {
+      console.log("Payment Success:", response);
+      alert(`Order Placed Successfully! Payment ID: ${response.razorpay_payment_id}`);
+      // You can redirect to an 'Orders' page here if you want
+      // navigate('/orders');
+  };
 
   if (loading) return (
     <div className="h-screen flex items-center justify-center bg-white">
@@ -133,7 +142,6 @@ const ProductDetails = () => {
                         {[...Array(4)].map((_,i) => <FaStar key={i} />)}
                         <FaStar className="text-gray-300" />
                     </div>
-                    {/* Anchor link logic could be added here to scroll to reviews */}
                     <span className="text-sm text-blue-600 font-medium hover:underline cursor-pointer">
                         (See Reviews)
                     </span>
@@ -156,6 +164,7 @@ const ProductDetails = () => {
                     <p className="text-sm text-gray-500 mt-1">Inclusive of all taxes</p>
                 </div>
 
+                {/* QUANTITY AND ACTION BUTTONS */}
                 <div className="flex flex-col sm:flex-row gap-4 mb-8">
                     <div className="flex items-center border border-gray-300 rounded-lg h-12 w-fit">
                         <button onClick={() => setQty(q => Math.max(1, q-1))} className="px-4 text-gray-600 hover:bg-gray-100 h-full font-bold">-</button>
@@ -163,11 +172,25 @@ const ProductDetails = () => {
                         <button onClick={() => setQty(q => q+1)} className="px-4 text-gray-600 hover:bg-gray-100 h-full font-bold">+</button>
                     </div>
 
-                    <button className="flex-1 bg-gray-900 text-white h-12 rounded-lg font-bold hover:bg-gray-800 transition shadow-lg flex items-center justify-center gap-2">
+                    {/* Add to Cart Button */}
+                    <button className="flex-1 bg-gray-100 text-gray-900 h-12 rounded-lg font-bold hover:bg-gray-200 transition flex items-center justify-center gap-2 border border-gray-300">
                         <FaShoppingCart /> Add to Cart
                     </button>
+
+                    {/* --- PAYMENT BUTTON COMPONENT --- */}
+                    <PaymentButton 
+                        productId={product.pId || product.id}
+                        productName={product.pName}
+                        description={`Purchase of ${product.pName} (x${qty})`}
+                        amount={product.pSellingPrice * qty} // Calculate Total Price
+                        image={product.pImages?.[0]}
+                        onSuccess={handlePaymentSuccess}
+                        className="flex-1 bg-indigo-600 text-white h-12 rounded-lg font-bold hover:bg-indigo-700 transition shadow-lg"
+                    />
+
                 </div>
 
+                {/* Trust Badges */}
                 <div className="grid grid-cols-3 gap-4 mb-8">
                     <div className="text-center p-3 bg-gray-50 rounded-lg">
                         <FaShieldAlt className="mx-auto text-xl text-gray-400 mb-1" />
@@ -183,6 +206,7 @@ const ProductDetails = () => {
                     </div>
                 </div>
 
+                {/* Description */}
                 <div>
                     <h3 className="text-lg font-bold text-gray-900 mb-3">About this item</h3>
                     <p className="text-gray-600 leading-relaxed whitespace-pre-line">
@@ -190,6 +214,7 @@ const ProductDetails = () => {
                     </p>
                 </div>
 
+                {/* Keywords/Tags */}
                 {product.keywords && (
                     <div className="mt-8 pt-6 border-t border-gray-100">
                         <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
