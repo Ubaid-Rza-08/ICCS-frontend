@@ -9,6 +9,7 @@ import LoginCallback from './pages/LoginCallback';
 import ProductForm from './pages/seller/ProductForm';
 import SellerDashboard from './pages/seller/SellerDashboard'; // NEW COMPONENT
 import ProductDetails from './pages/ProductDetails';
+import SessionExpiredPopup from './components/SessionExpiredPopup';
 
 // Role Guard Component
 const ProtectedRoute = ({ children, roles }) => {
@@ -22,6 +23,7 @@ const ProtectedRoute = ({ children, roles }) => {
 function App() {
   return (
     <BrowserRouter>
+    <SessionExpiredPopup />
       <AuthProvider>
         <Navbar />
         <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
