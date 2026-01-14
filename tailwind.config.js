@@ -7,5 +7,5 @@ export default {
   theme: {
     extend: {},
   },
-  plugins: [], // <--- This MUST be an empty array [], NOT an object {}
+  plugins: [],
 }

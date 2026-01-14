@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import api from '../../api/axios';
 import { toast } from 'react-toastify';
-import { FaCloudUploadAlt, FaMagic, FaTimes, FaCheckCircle, FaSpinner, FaTrophy } from 'react-icons/fa';
+import { FaCloudUploadAlt, FaMagic, FaTimes, FaCheckCircle, FaSpinner, FaTrophy, FaSearch } from 'react-icons/fa';
 
 const ProductForm = () => {
   const navigate = useNavigate();
@@ -11,13 +11,31 @@ const ProductForm = () => {
   
   const isEditMode = !!id;
   const [loading, setLoading] = useState(false);
+  
+  // --- AI STATE ---
   const [aiLoading, setAiLoading] = useState(false);
   const [similarProducts, setSimilarProducts] = useState([]);
 
+  // --- NAME SEARCH STATE ---
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
+  const [nameSearchResults, setNameSearchResults] = useState([]);
+
   // Form State
   const [formData, setFormData] = useState({
-    pName: '', pBrandName: '', pDescription: '', pMrp: '', pSellingPrice: '', pPurchasingPrice: '',
-    category: '', subCategory: '', keywords: [], confidence: 0, mode: '', pImages: [] 
+    pName: '', 
+    pBrandName: '', 
+    pDescription: '', 
+    pMrp: '', 
+    pSellingPrice: '', 
+    pPurchasingPrice: '',
+    pCreditScore: 0, // Added based on SellerController
+    category: '', 
+    subCategory: '', 
+    keywords: [], 
+    confidence: 0, 
+    mode: '', 
+    pImages: [] 
   });
 
   const [newFiles, setNewFiles] = useState([]);
@@ -28,7 +46,8 @@ const ProductForm = () => {
       setFormData({
         ...p,
         keywords: p.keywords || [],
-        pImages: p.pImages || []
+        pImages: p.pImages || [],
+        pCreditScore: p.pCreditScore || 0
       });
     }
   }, [isEditMode, location.state]);
@@ -48,42 +67,53 @@ const ProductForm = () => {
     setNewFiles(prev => prev.filter((_, index) => index !== indexToRemove));
   };
 
+  // --- REUSABLE FILL FUNCTION (Used by AI & Name Search) ---
+  const fillFormWithData = (product) => {
+      const incomingImages = product.pImages || [];
+      setFormData(prev => ({
+          ...prev,
+          pName: product.pName || "",
+          pBrandName: product.pBrandName || "",
+          pDescription: product.pDescription || "",
+          pMrp: product.pMrp || "",
+          pSellingPrice: product.pSellingPrice || "",
+          pPurchasingPrice: product.pPurchasingPrice || prev.pPurchasingPrice,
+          pCreditScore: product.pCreditScore || prev.pCreditScore, 
+          category: product.category || "",
+          subCategory: product.subCategory || "",
+          keywords: product.keywords || [],
+          pImages: incomingImages
+      }));
+      
+      toast.success("Form populated with product data!");
+      // Clear results after selection
+      setSimilarProducts([]);
+      setNameSearchResults([]);
+  };
+
   // --- 1. RELEVANCE SCORING ALGORITHM ---
   const calculateRelevanceScore = (aiData, product) => {
       let score = 0;
-      
       const aiTitleWords = (aiData.title || "").toLowerCase().split(/\s+/);
       const aiKeywords = (aiData.keywords || []).map(k => k.toLowerCase());
-      
       const pName = (product.pName || "").toLowerCase();
       const pDesc = (product.pDescription || "").toLowerCase();
       const pKeywords = (product.keywords || []).map(k => k.toLowerCase());
 
-      // A. Title Match (Weight: 10 points per matched word)
-      // This is the strongest indicator of a match
       aiTitleWords.forEach(word => {
-          if (word.length > 2 && pName.includes(word)) {
-              score += 10;
-          }
+          if (word.length > 2 && pName.includes(word)) score += 10;
       });
 
-      // B. Keyword Match (Weight: 5 points per match)
       aiKeywords.forEach(aiK => {
-          if (pKeywords.some(pK => pK.includes(aiK) || aiK.includes(pK))) {
-              score += 5;
-          }
+          if (pKeywords.some(pK => pK.includes(aiK) || aiK.includes(pK))) score += 5;
       });
 
-      // C. Description Context (Weight: 3 points)
-      // Checks if the main AI title appears in the description
-      if (pDesc.includes(aiData.title?.toLowerCase())) {
-          score += 3;
-      }
+      if (pDesc.includes(aiData.title?.toLowerCase())) score += 3;
 
       return score;
   };
 
-  // --- 2. UPDATED ANALYZE & SORT ---
+  // --- 2. AI ANALYZE & SORT ---
   const handleAnalyze = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -111,23 +141,21 @@ const ProductForm = () => {
         mode: ai.mode
       }));
 
-      // --- FETCH AND RANK SIMILAR PRODUCTS ---
+      // Search similar by AI keywords
       if (ai.keywords && ai.keywords.length > 0) {
         try {
             const keywordQuery = ai.keywords.join(',');
+            // Matches PublicProductController: @RequestParam("keywords")
             const { data: searchResults } = await api.get(`/public/products/search-keywords?keywords=${keywordQuery}`);
             
             if (searchResults && searchResults.length > 0) {
-                // Apply Scoring
                 const rankedProducts = searchResults.map(product => ({
                     ...product,
                     relevanceScore: calculateRelevanceScore(ai, product)
-                }))
-                // Sort Descending (Highest Score First)
-                .sort((a, b) => b.relevanceScore - a.relevanceScore);
+                })).sort((a, b) => b.relevanceScore - a.relevanceScore);
 
                 setSimilarProducts(rankedProducts);
-                toast.info(`Found ${rankedProducts.length} similar products. Top match ranked #1.`);
+                toast.info(`Found ${rankedProducts.length} similar products.`);
             }
         } catch (searchErr) {
             console.error("Keyword search failed", searchErr);
@@ -141,24 +169,30 @@ const ProductForm = () => {
     }
   };
 
-  const handleSelectSimilar = (product) => {
-      const incomingImages = product.pImages || [];
-      setFormData(prev => ({
-          ...prev,
-          pName: product.pName || "",
-          pBrandName: product.pBrandName || "",
-          pDescription: product.pDescription || "",
-          pMrp: product.pMrp || "",
-          pSellingPrice: product.pSellingPrice || "",
-          pPurchasingPrice: product.pPurchasingPrice || prev.pPurchasingPrice, 
-          category: product.category || "",
-          subCategory: product.subCategory || "",
-          keywords: product.keywords || [],
-          pImages: incomingImages
-      }));
-      
-      toast.success("Form filled from selected product!");
-      setSimilarProducts([]);
+  // --- 3. NAME SEARCH FUNCTION ---
+  const handleSearchByName = async (e) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    setIsSearchLoading(true);
+    setNameSearchResults([]);
+
+    try {
+        // Matches PublicProductController: @RequestParam("name")
+        const { data } = await api.get(`/public/products/search?name=${searchQuery}`);
+        
+        if (data && data.length > 0) {
+            setNameSearchResults(data);
+            toast.success(`Found ${data.length} products matching "${searchQuery}"`);
+        } else {
+            toast.info("No products found with that name.");
+        }
+    } catch (error) {
+        console.error(error);
+        toast.error("Search failed.");
+    } finally {
+        setIsSearchLoading(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -166,7 +200,20 @@ const ProductForm = () => {
     setLoading(true);
 
     const submitData = new FormData();
-    submitData.append('product', JSON.stringify(formData));
+    
+    // Ensure numeric types are sent as numbers if required, though FormData implies strings usually.
+    // However, SellerController uses Gson to parse 'product' string to object.
+    const productPayload = {
+        ...formData,
+        pMrp: Number(formData.pMrp),
+        pSellingPrice: Number(formData.pSellingPrice),
+        pPurchasingPrice: Number(formData.pPurchasingPrice),
+        pCreditScore: Number(formData.pCreditScore)
+    };
+
+    submitData.append('product', JSON.stringify(productPayload));
+    
+    // Append new images
     newFiles.forEach(f => submitData.append('images', f));
 
     try {
@@ -200,14 +247,73 @@ const ProductForm = () => {
           {isEditMode ? 'Edit Product' : 'Add New Product'}
         </h1>
         
-        {/* --- AI SECTION --- */}
+        {/* ======================= */}
+        {/* 1. SEARCH BY NAME SECTION */}
+        {/* ======================= */}
+        <div className="bg-blue-50 p-5 rounded-xl mb-6 border border-blue-100">
+            <h3 className="font-semibold text-blue-900 flex items-center gap-2 mb-3">
+               <FaSearch /> Find Existing Product
+            </h3>
+            <div className="flex gap-2">
+                <input 
+                    type="text" 
+                    placeholder="Search by product name..." 
+                    className="flex-1 border border-blue-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-400 outline-none"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearchByName(e)}
+                />
+                <button 
+                    type="button"
+                    onClick={handleSearchByName}
+                    disabled={isSearchLoading}
+                    className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition flex items-center gap-2 disabled:opacity-70"
+                >
+                    {isSearchLoading ? <FaSpinner className="animate-spin"/> : 'Search'}
+                </button>
+            </div>
+
+            {/* SEARCH RESULTS GRID */}
+            {nameSearchResults.length > 0 && (
+                 <div className="mt-4 pt-4 border-t border-blue-200">
+                    <div className="flex justify-between items-center mb-2">
+                        <h4 className="text-sm font-bold text-blue-800">Search Results:</h4>
+                        <button onClick={() => setNameSearchResults([])} className="text-xs text-gray-500 hover:text-red-500">Dismiss</button>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {nameSearchResults.slice(0, 4).map((prod, idx) => (
+                            <div 
+                              key={idx} 
+                              onClick={() => fillFormWithData(prod)}
+                              className="bg-white p-2 rounded border border-blue-100 cursor-pointer hover:ring-2 hover:ring-blue-500 transition relative group"
+                            >
+                              <img src={prod.pImages?.[0] || 'https://placehold.co/100'} alt={prod.pName} className="w-full h-24 object-contain rounded mb-2"/>
+                              <p className="text-xs font-bold text-gray-800 line-clamp-1">{prod.pName}</p>
+                              <p className="text-[10px] text-gray-500">{prod.pBrandName}</p>
+                              
+                              <div className="absolute inset-0 bg-blue-900/10 opacity-0 group-hover:opacity-100 transition flex items-center justify-center rounded">
+                                  <span className="bg-white text-blue-600 text-xs font-bold px-2 py-1 rounded shadow flex items-center gap-1">
+                                      <FaCheckCircle /> Select
+                                  </span>
+                              </div>
+                            </div>
+                        ))}
+                    </div>
+                 </div>
+            )}
+        </div>
+
+
+        {/* ======================= */}
+        {/* 2. AI SECTION */}
+        {/* ======================= */}
         <div className="bg-indigo-50 p-5 rounded-xl mb-8 border border-indigo-100">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="font-semibold text-indigo-900 flex items-center gap-2">
                 <FaMagic /> AI Auto-Fill & Search
               </h3>
-              <p className="text-sm text-indigo-700">Upload an image to auto-detect details and add it to your gallery.</p>
+              <p className="text-sm text-indigo-700">Upload an image to auto-detect details.</p>
             </div>
             
             {aiLoading ? (
@@ -226,14 +332,14 @@ const ProductForm = () => {
           {similarProducts.length > 0 && (
              <div className="mt-4 pt-4 border-t border-indigo-200">
                  <div className="flex justify-between items-center mb-2">
-                    <h4 className="text-sm font-bold text-indigo-800">Ranked Matches ({similarProducts.length}):</h4>
+                    <h4 className="text-sm font-bold text-indigo-800">AI Matches ({similarProducts.length}):</h4>
                     <button onClick={() => setSimilarProducts([])} className="text-xs text-gray-500 hover:text-red-500">Dismiss</button>
                  </div>
                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                      {similarProducts.slice(0, 4).map((prod, idx) => (
                          <div 
                            key={idx} 
-                           onClick={() => handleSelectSimilar(prod)}
+                           onClick={() => fillFormWithData(prod)}
                            className="bg-white p-2 rounded border border-indigo-100 cursor-pointer hover:ring-2 hover:ring-indigo-500 transition relative group"
                          >
                             {/* --- RANK BADGE --- */}
@@ -245,7 +351,6 @@ const ProductForm = () => {
                             <img src={prod.pImages?.[0] || 'https://placehold.co/100'} alt={prod.pName} className="w-full h-24 object-contain rounded mb-2 pt-6"/>
                             <p className="text-xs font-bold text-gray-800 line-clamp-1">{prod.pName}</p>
                             
-                            {/* Display Score for clarity */}
                             <p className="text-[10px] text-indigo-500 font-medium">Relevance: {prod.relevanceScore}</p>
 
                             <div className="absolute inset-0 bg-indigo-900/10 opacity-0 group-hover:opacity-100 transition flex items-center justify-center rounded">
@@ -278,7 +383,7 @@ const ProductForm = () => {
             <textarea name="pDescription" className="w-full border border-gray-300 rounded-lg p-3 h-32 focus:ring-2 focus:ring-indigo-500 outline-none" value={formData.pDescription} onChange={handleChange} />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">MRP</label>
               <input type="number" name="pMrp" className="w-full border border-gray-300 rounded-lg p-3" value={formData.pMrp} onChange={handleChange} required />
@@ -290,6 +395,10 @@ const ProductForm = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Purchasing Price</label>
               <input type="number" name="pPurchasingPrice" className="w-full border border-gray-300 rounded-lg p-3 text-gray-500" value={formData.pPurchasingPrice} onChange={handleChange} required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Credit Score</label>
+              <input type="number" name="pCreditScore" className="w-full border border-gray-300 rounded-lg p-3 text-blue-600" value={formData.pCreditScore} onChange={handleChange} />
             </div>
           </div>
 

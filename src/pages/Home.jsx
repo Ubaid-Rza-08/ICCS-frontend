@@ -11,6 +11,9 @@ const Home = () => {
   // Search & Filter State
   const [search, setSearch] = useState("");
   const [searchMode, setSearchMode] = useState("name");
+  
+  // New: Store unique categories found in the database
+  const [categories, setCategories] = useState(["All"]); 
   const [selectedCategory, setSelectedCategory] = useState("All");
 
   const navigate = useNavigate();
@@ -19,6 +22,7 @@ const Home = () => {
     fetchProducts();
   }, []);
 
+  // Filter Logic: Runs whenever products or selectedCategory changes
   useEffect(() => {
     if (selectedCategory === "All") {
       setFilteredProducts(products);
@@ -33,8 +37,17 @@ const Home = () => {
     setLoading(true);
     try {
       const { data } = await api.get("/public/products");
-      setProducts(data);
-      setFilteredProducts(data);
+      
+      // Sort by Credit Score Descending (Highest First)
+      const sortedData = data.sort((a, b) => (b.pCreditScore || 0) - (a.pCreditScore || 0));
+
+      setProducts(sortedData);
+      setFilteredProducts(sortedData);
+
+      // Extract Unique Categories Dynamically
+      const uniqueCats = ["All", ...new Set(sortedData.map(p => p.category).filter(Boolean))];
+      setCategories(uniqueCats);
+
     } catch (err) {
       console.error(err);
     } finally {
@@ -58,7 +71,15 @@ const Home = () => {
 
     try {
       const { data } = await api.get(endpoint);
-      setProducts(data);
+      
+      // Sort Search Results by Credit Score Descending
+      const sortedData = data.sort((a, b) => (b.pCreditScore || 0) - (a.pCreditScore || 0));
+
+      setProducts(sortedData);
+      
+      // Update categories based on search results
+      const uniqueCats = ["All", ...new Set(sortedData.map(p => p.category).filter(Boolean))];
+      setCategories(uniqueCats);
     } catch (err) {
       console.error(err);
       setProducts([]);
@@ -113,7 +134,30 @@ const Home = () => {
         </div>
       </div>
 
-      {/* FILTER STRIP REMOVED */}
+      {/* --- CATEGORY FILTER STRIP --- */}
+      <div className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-100 shadow-sm">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-hide">
+            <span className="text-sm font-bold text-gray-400 uppercase tracking-wider mr-2">
+              Filters:
+            </span>
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`
+                  px-5 py-2 rounded-full text-sm font-semibold transition-all duration-200 whitespace-nowrap border
+                  ${selectedCategory === cat 
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-md transform scale-105' 
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50'}
+                `}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
 
       {/* PRODUCT GRID */}
       <div className="max-w-7xl mx-auto px-6 py-12">
@@ -121,7 +165,10 @@ const Home = () => {
           <h2 className="text-2xl font-bold text-gray-800">
             {search ? 'Search Results' : `Latest Collection`}
           </h2>
-          <span className="text-sm text-gray-500 font-medium">{filteredProducts.length} items found</span>
+          <span className="text-sm text-gray-500 font-medium">
+            {filteredProducts.length} items found
+            {selectedCategory !== "All" && <span className="text-indigo-600 ml-1">(in {selectedCategory})</span>}
+          </span>
         </div>
 
         {loading ? (
@@ -142,8 +189,9 @@ const Home = () => {
               <FaBoxOpen size={48} />
             </div>
             <h3 className="text-xl font-bold text-gray-800">No Products Found</h3>
-            <button onClick={fetchProducts} className="mt-6 text-indigo-600 font-semibold hover:underline">
-              Clear Filters
+            <p className="text-gray-500 mt-2">Try adjusting your category or search terms.</p>
+            <button onClick={() => { setSelectedCategory("All"); setSearch(""); fetchProducts(); }} className="mt-6 text-indigo-600 font-semibold hover:underline">
+              Clear All Filters
             </button>
           </div>
         ) : (
@@ -161,6 +209,12 @@ const Home = () => {
                     alt={p.pName}
                     className="w-full h-full object-contain p-4 group-hover:scale-110 transition-transform duration-500"
                   />
+                  {/* Optional: Display Credit Score Badge if it exists */}
+                  {p.pCreditScore > 0 && (
+                      <div className="absolute top-2 right-2 bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-1 rounded-full shadow-sm">
+                        Score: {p.pCreditScore}
+                      </div>
+                  )}
                 </div>
 
                 <div className="p-5 flex flex-col flex-1">
